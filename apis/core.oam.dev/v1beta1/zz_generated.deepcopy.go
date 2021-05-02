@@ -93,6 +93,11 @@ func (in *AppDeploymentSpec) DeepCopyInto(out *AppDeploymentSpec) {
 		*out = new(Traffic)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.Dispatcher != nil {
+		in, out := &in.Dispatcher, &out.Dispatcher
+		*out = new(AppDeploymentDispatcherType)
+		**out = **in
+	}
 	if in.AppRevisions != nil {
 		in, out := &in.AppRevisions, &out.AppRevisions
 		*out = make([]AppRevision, len(*in))

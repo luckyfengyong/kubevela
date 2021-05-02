@@ -7,7 +7,7 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
-RUN go mod download
+RUN GOPROXY=https://goproxy.cn,direct go mod download
 
 # Copy the go source
 COPY cmd/core/main.go main.go
@@ -20,6 +20,7 @@ ARG TARGETARCH
 ARG VERSION
 ARG GITVERSION
 RUN GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
+    GOPROXY=https://goproxy.cn,direct \
     go build -a -ldflags "-s -w -X github.com/oam-dev/kubevela/version.VelaVersion=${VERSION:-undefined} -X github.com/oam-dev/kubevela/version.GitRevision=${GITVERSION:-undefined}" \
     -o manager-${TARGETARCH} main.go
 

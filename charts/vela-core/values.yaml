@@ -9,8 +9,8 @@ applyOnceOnly: "off"
 # By default, metrics are disabled due the prometheus dependency
 disableCaps: "metrics"
 image:
-  repository: oamdev/vela-core
-  tag: latest
+  repository: luckyfengyong/vela-core
+  tag: v1.0-ocm
   pullPolicy: Always
 
 imagePullSecrets: []

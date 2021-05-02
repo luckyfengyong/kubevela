@@ -71,6 +71,9 @@ spec:
                     type: string
                 type: object
               type: array
+            dispatcher:
+              description: Dispatcher specifies how the components is applied to the target clusters. Upon nil value, the default dispatcher will be used which instantiates the cluster client by loading credentials from "core.oam.dev/v1beta1.Cluster" type.
+              type: string
             traffic:
               description: Traffic defines the traffic rules to apply across revisions.
               properties:

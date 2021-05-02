@@ -123,21 +123,39 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	diff := r.calculateDiff(appDeployment)
 
 	if !diff.Empty() {
-		if appDeployment.Status.Phase != oamcore.PhaseRolling {
-			appDeployment.Status.Phase = oamcore.PhaseRolling
-			if err := r.updateStatus(ctx, appDeployment); err != nil {
+		// EDIT: keep the legacy dispatching process upon nil .spec.dispatcher
+		switch {
+		case appDeployment.Spec.Dispatcher == nil:
+			if appDeployment.Status.Phase != oamcore.PhaseRolling {
+				appDeployment.Status.Phase = oamcore.PhaseRolling
+				if err := r.updateStatus(ctx, appDeployment); err != nil {
+					return ctrl.Result{}, err
+				}
+			}
+			if err := r.deleteRevisions(ctx, appDeployment, diff.Del); err != nil {
 				return ctrl.Result{}, err
 			}
-		}
-
-		if err := r.deleteRevisions(ctx, appDeployment, diff.Del); err != nil {
-			return ctrl.Result{}, err
-		}
-		if err := r.applyRevisions(ctx, appDeployment, diff.Mod); err != nil {
-			return ctrl.Result{}, err
-		}
-		if err := r.applyRevisions(ctx, appDeployment, diff.Add); err != nil {
-			return ctrl.Result{}, err
+			if err := r.applyRevisions(ctx, appDeployment, diff.Mod); err != nil {
+				return ctrl.Result{}, err
+			}
+			if err := r.applyRevisions(ctx, appDeployment, diff.Add); err != nil {
+				return ctrl.Result{}, err
+			}
+		case *appDeployment.Spec.Dispatcher == oamcore.AppDeploymentDispatcherTypeOCM:
+			// 1. Setting status.phase to "Rolling"
+			// 2. for each appRevision nested in the appDeployment
+			//    a. Check existence of the corresponding cluster's namespace
+			//    b. Converting OAM compoments to manifests and then applying then
+			// 3. Syncing up status to "Completed"
+			if appDeployment.Status.Phase != oamcore.PhaseRolling {
+				appDeployment.Status.Phase = oamcore.PhaseRolling
+				if err := r.updateStatus(ctx, appDeployment); err != nil {
+					return ctrl.Result{}, err
+				}
+			}
+			if err := r.applyRevisionsByOCM(ctx, appDeployment); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 	}
 
@@ -210,27 +228,31 @@ func (r *Reconciler) deleteRevisions(ctx context.Context, appd *oamcore.AppDeplo
 			return err
 		}
 
-		var kubecli client.Client
-		if isHostCluster(rev.ClusterName) {
-			kubecli = r.Client
-		} else {
-			kubecli, err = r.getClientForCluster(ctx, rev.ClusterName, appd.Namespace)
-			if err != nil {
-				return err
-			}
-		}
-
-		for _, wl := range workloads {
-			if err := kubecli.Delete(ctx, wl.Object); err != nil && !apierrors.IsNotFound(err) {
-				return err
-			}
-			for _, tr := range wl.traits {
-				if err := kubecli.Delete(ctx, tr.Object); err != nil && !apierrors.IsNotFound(err) {
+		switch {
+		case appd.Spec.Dispatcher == nil:
+			var kubecli client.Client
+			if isHostCluster(rev.ClusterName) {
+				kubecli = r.Client
+			} else {
+				kubecli, err = r.getClientForCluster(ctx, rev.ClusterName, appd.Namespace)
+				if err != nil {
 					return err
 				}
 			}
-		}
 
+			for _, wl := range workloads {
+				if err := kubecli.Delete(ctx, wl.Object); err != nil && !apierrors.IsNotFound(err) {
+					return err
+				}
+				for _, tr := range wl.traits {
+					if err := kubecli.Delete(ctx, tr.Object); err != nil && !apierrors.IsNotFound(err) {
+						return err
+					}
+				}
+			}
+		case *appd.Spec.Dispatcher == oamcore.AppDeploymentDispatcherTypeOCM:
+			return r.deleteRevisionsByOCM(ctx, appd)
+		}
 	}
 	return nil
 }

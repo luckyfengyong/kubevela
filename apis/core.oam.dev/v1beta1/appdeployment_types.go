@@ -24,6 +24,12 @@ import (
 // AppDeploymentPhase defines the phase that the AppDeployment is undergoing.
 type AppDeploymentPhase string
 
+type AppDeploymentDispatcherType string
+
+var (
+	AppDeploymentDispatcherTypeOCM AppDeploymentDispatcherType = "OpenClusterManagement"
+)
+
 const (
 	// PhaseRolling is the phase when the AppDeployment is rolling live instances from old revisions to new ones.
 	PhaseRolling AppDeploymentPhase = "Rolling"
@@ -158,6 +164,12 @@ type AppDeploymentSpec struct {
 
 	// Traffic defines the traffic rules to apply across revisions.
 	Traffic *Traffic `json:"traffic,omitempty"`
+
+	// Dispatcher specifies how the components is applied to the target clusters.
+	// Upon nil value, the default dispatcher will be used which instantiates the
+	// cluster client by loading credentials from "core.oam.dev/v1beta1.Cluster"
+	// type.
+	Dispatcher *AppDeploymentDispatcherType `json:"dispatcher,omitempty"`
 
 	// AppRevision specifies  AppRevision resources to and the rules to apply to them.
 	AppRevisions []AppRevision `json:"appRevisions,omitempty"`
